@@ -142,7 +142,7 @@ func main() {
 	res = image.NewRGBA(image.Rect(0, 0, sizeX, sizeY))
 	draw.Draw(res, res.Bounds(), img, image.Point{0, 0}, draw.Src)
 
-	// setting the # of goroutines to 1 in case of single-threaded implementation
+	// setting the # of goroutines according to the size of image
 	if processingMode == "M" {
 		goroutineCount = int(math.Ceil(float64(sizeX) / float64(squareSize)))
 	}
