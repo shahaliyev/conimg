@@ -35,8 +35,10 @@ func openImage(imagePath string) image.Image {
 
 // Encodes and saves a jpeg file as result.jpg
 func saveImage(imagePath string, img image.Image) {
-	ext := filepath.Ext(imagePath)
-	dir := filepath.Dir(imagePath)
+	var ext, dir string
+
+	dir = filepath.Dir(imagePath)
+	ext = filepath.Ext(imagePath)
 	newImagePath := fmt.Sprintf("%s/result%s", dir, ext)
 	file, err := os.Create(newImagePath)
 	check(err)
@@ -55,13 +57,16 @@ const alpha = 255
 
 func averageColor(startX, startY, sizeX, sizeY int, img image.Image) color.Color {
 	var redBucket, greenBucket, blueBucket uint32
-	area := uint32((sizeX - startX) * (sizeY - startY))
+	var red, green, blue uint32
+	var area uint32
+
+	area = uint32((sizeX - startX) * (sizeY - startY))
 
 	// separating rgba elements and finding each bucket's size
 	for x := startX; x < sizeX; x++ {
 		for y := startY; y < sizeY; y++ {
 			// no need to calculate alpha
-			red, green, blue, _ := img.At(x, y).RGBA()
+			red, green, blue, _ = img.At(x, y).RGBA()
 			redBucket += red
 			greenBucket += green
 			blueBucket += blue
@@ -77,14 +82,31 @@ func averageColor(startX, startY, sizeX, sizeY int, img image.Image) color.Color
 	return color.NRGBA{uint8(redBucket / convertRGB), uint8(greenBucket / convertRGB), uint8(blueBucket / convertRGB), alpha}
 }
 
+// shrinking if the square is out of bounds
+func shrinkIfBounds(length, size *int){
+	if *length > *size-1 {
+		*length = *size
+	}
+}
+
 // Main logic: Processes the image by setting square-sized parts to their average color
 func processImage(startX, startY, sizeX, sizeY, squareSize, goroutineIncrement int, res draw.Image) {
+	var lengthX, lengthY int
+	var temp image.Image
+	var color color.Color
+
 	for x := startX; x < sizeX; x = x + goroutineIncrement {
 		for y := startY; y < sizeY; y = y + squareSize {
+			lengthX = x + squareSize
+			lengthY = y + squareSize
+
+			// shrinking the sizes of square if reaching (out of) bounds
+			shrinkIfBounds(&lengthX, &sizeX)
+			shrinkIfBounds(&lengthY, &sizeY)
 			// creating a temporary mask for the square
-			temp := image.NewRGBA(image.Rect(x, y, x+squareSize, y+squareSize))
+			temp = image.NewRGBA(image.Rect(x, y, lengthX, lengthY))
 			// finding the average color for the square
-			color := averageColor(x, y, x+squareSize, y+squareSize, res)
+			color = averageColor(x, y, lengthX, lengthY, res)
 			// setting the color for the square
 			draw.Draw(res, temp.Bounds(), &image.Uniform{color}, image.Point{x, y}, draw.Src)
 		}
@@ -111,8 +133,8 @@ func readCommandLine() (string, int, string) {
 
 // Handles errors for the square size and processing mode
 func commandLineErrorCheck(sizeX, sizeY, squareSize int, processingMode string) {
-	if squareSize > sizeX || squareSize > sizeY || squareSize <= 0 {
-		log.Fatalln("Out of bounds or non-positive square size. Please change the size of the square")
+	if squareSize > sizeX || squareSize > sizeY || squareSize <= 1 {
+		log.Fatalln("Out of bounds or small square size. Please change the size of the square")
 	}
 	if processingMode != "M" && processingMode != "S" {
 		log.Fatalln("Wrong processing mode. Please enter S for single or M for multi-threaded mode.")
